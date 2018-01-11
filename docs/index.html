@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset="utf-8"/>
+    <title>rotodrag-js: a JavaScript library of one-finger SVG dragging and rotation</title>
+    <link href="docs.css" rel="stylesheet" type="text/css" />
+    <script src="rotodrag-0.1.0.js"></script>
+
+  </head>
+
+  <body>
+
+    <div class="content">
+
+      <h1>rotodrag-js</h1>
+      <h2>A JavaScript library for one-finger SVG dragging and rotation</h2>
+
+      <p>Have you ever wanted to manipulate both the location and orientation of an SVG object at the same time? Using only one finger or just your mouse?</p>
+      <p><b>rotodrag-js</b> is a solution. It lets you drag SVG objects contained <i>inside</i> a parent SVG as if they were physical objects on a sheet of ice, such that they rotate around their center of mass as they are pulled one way or another.</p>
+      <p>This is exactly what you might want if you are building a web application for doing jigsaw puzzles, or for placing drawings from Greek mythology on top of their constellations in a picture of a starry sky, or for making animated movies about the lives of triangles and circles.</p>
+
+      <h2>Example: Jigsaw puzzle</h2>
+      
+      <svg class="draggables"
+           xmlns="http://www.w3.org/2000/svg"
+           viewBox="0 0 280 150"
+           version="1.1"
+           id="svg4601"
+           >
+	<rect x="0" y="0" width="280" height="150" fill="none" stroke="#000000" stroke-width="0.5" />
+        <g class="draggable" id="puzzle1" transform="translate(70,90)" data-dragstyle="slippery" data-slip-radius="20">
+	  <g transform="translate(-69.25,-170.43)">
+          <path
+            style="fill:#999999; fill-rule:evenodd; stroke:#000000; stroke-width:0.5; stroke-linecap:butt; stroke-linejoin:miter; stroke-miterlimit:4; stroke-dasharray:none; stroke-opacity:1"
+            d="M 73.9731,217.84561 91.337,190.98967 c 0,0 -4.25948,29.97861 12.49177,12.95901 16.75125,-17.0196 1.73141,-28.38719 1.73141,-28.38719 l 19.27774,-15.37389 -20.32267,-13.7079 c 0,0 6.94415,30.7526 -19.13483,12.38388 -26.078965,-18.36873 4.96943,-21.67684 4.96943,-21.67684 l -13.22071,-17.3018 -21.96615,20.67715 c 0,0 -0.539643,-13.86417 -21.017958,-6.99825 -20.478315,6.86591 10.460147,28.03338 10.460147,28.03338 l -12.058774,10.24932 v 0 M 73.9731,217.84561 57.69432,199.93259 c -9.036731,15.41778 -12.432824,11.61184 -18.074264,5.33513 -3.901327,-4.224 -6.792417,-15.19311 7.128195,-17.38009 L 32.546405,171.84654"
+            />
+	  </g>
+        </g>
+	
+        <g class="draggable" id="puzzle2" transform="translate(225, 73)" data-dragstyle="slippery" data-slip-radius="20">
+	  <g transform="translate(-225.42,-153.3)">
+          <path 
+            style="fill:#999999; fill-rule:evenodd;stroke:#000000; stroke-width:0.5; stroke-linecap:butt; stroke-linejoin:miter; stroke-miterlimit:4; stroke-dasharray:none; stroke-opacity:1"
+            d="m 189.92665,119.73423 29.9421,3.43453 c 0,0 -14.48317,-22.14631 12.43541,-20.6375 26.24471,1.47104 16.13959,21.69583 16.13959,21.69583 l 14.81666,-1.05833 -0.79375,21.43125 c 0,0 -36.91889,-10.19679 -26.19375,11.37708 10.72514,21.57387 23.8125,11.1125 23.8125,11.1125 l -0.52916,17.19792 -26.19375,0.26458 c 0,0 19.32545,21.12 -13.22917,20.6375 -32.55462,-0.4825 -8.73125,-21.69583 -8.73125,-21.69583 l -21.75353,-1.85632 v 0 m 0.2781,-61.90321 v 24.20485 c 17.05682,-5.33249 17.01047,-0.23185 16.96412,8.20739 0.0464,5.74981 -5.19121,15.81198 -16.96412,8.06828 l -0.2781,21.42269"
+            />
+	  </g>
+	</g>
+      </svg>
+
+      <h2>How does it work?</h2>
+
+      <p><b>rotodrag-js</b> provides a 1-pointer solution for simultaneous rotation and translation using two principles: the "sticky finger" and the "slippery center". Drigging is initiated on mouse-down or touch-start browser event handlers attached to each draggable SVG element. As the user subsequently drags their mouse or finger, the position of the SVG object is updated such that the pointer's location on the object is the same as when the drag was initiated (the "sticky finger"), and the new conter point of the object lies on the line segment between its previous location and the new location of the pointer, as in the figure below (a).</p>
+
+      <img src="figure.png" width="100%" />
+
+      <p>By updating the SVG position at the rate of incoming pointer events, this approach yeilds fluid and intuitive manipulation of each draggable object in most cases. However, if the dragging is initiated near the center point of the object, small and unctrollable movements of the pointer will tend to induce large, sporadic rotations. <b>rotodrag-js</b> implements a simple solution to this problem, which is to suppress the initation of dragging until the pointer has bee dragged sufficiently far away from the center point of an object (the "slippery center"), as in the figure above (b). The latency in an object's movement is largely imperceptible, and the ffect is that every attempt to drag an object affords a degree of expressive controll.</p>
+
+      <h2>How do I use it on my website?</h2>
+
+      <p>You need to have a good understanding of the XML specification of SVG to use <b>rotodrag-js</b>, as you will have to edit the raw code of your SVG file to get things to work. The basic steps are as follows:</p>
+      <ol>
+	<li>Add the <code>rotodrag.js</code> file to your header:<br />
+	  <pre>&lt;script src="rotodrag.js"&gt;&lt;/script&gt;</pre></li>
+	<li>Embed the code for your SVG image directly into the body of your webpage. Add a class to this SVG element "draggables" to indicate that this SVG has objects inside it that you'd like to make draggable.:<br />
+	  <pre>&lt;svg class="draggables"
+   xmlns="http://www.w3.org/2000/svg"&gt;
+   ...
+&lt;/svg&gt;</li>
+	<li>Position an object that you'd like to make draggable so that it's center point is located at 0,0 on the SVG. If you are importing complex SVG code from some SVG editor, you can wrap your complex object in a <code>&lt;g&gt;</code> element and use the "transform" property to position your object just right.<br />
+	  <pre>   &lt;g transform="translate(-69.25,-170.43)"&gt;
+      &lt;path ... some complex path here ... /&gt;
+   &lt;/g&gt;</pre>
+	</li>
+	<li>Finally, wrap this object in <u>another</u> &lt;g&gt; element, with a reverse transform attribute to position the object back to its starting location, a class of "draggable", and optional "data-dragstyle" and "data-slip-radius" attributes to enable and customize the size of the slippery center.<br />
+<pre>   &lt;g class="draggable" 
+      transform="translate(69.25,170.43)"
+      data-dragstyle="slippery"
+      data-slip-radius="20"&gt;
+      &lt;g transform="translate(-69.25,-170.43)"&gt;
+         &lt;path ... some complex path here ... /&gt;
+      &lt;/g&gt;
+   &lt;/g&gt;</pre>
+	</li>
+      </ol>
+      <p>If all goes well, the auto-start functionality of <b>rotodrag-js</b> should kick in when you load your HTML page, and you should be able to drag an object around its containing SVG using your mouse or your finger. If you have trouble, see example embedded in the source code of this page.</p>
+      
+      <h2>Contributing</h2>
+      
+      <p><b>rotodrag-js</b> was originally written by <a href="http://people.ict.usc.edu/~gordon/">Andrew S. Gordon</a> at the University of Southern California to support data-collection websites related to the automated interpretation of the famous "Heider-Simmel Film" (see here, here, and here). These projects required a capacity for one-finger dragging and rotation of SVG objects, and none of the existing SVG or drag-and-drop libraries implemented the desired behavior. The code was made open-source to help others with the same needs.</p>
+      
+      <p><b>rotodrag-js</b> breaks frequently as browser vendors add and drop functionality from the desktop and mobile browsers, e.g. Chrome inexplicably dropped the javascript function "getTransformToElement" in late 2017, requiring the addition of a polyfill. To keep things working smoothly in the face of constant change, <b>rotodrag-js</b> requires contributions from people like you. </p>
+
+      <p>GitHub Repository: <a href="https://github.com/asgordon/rotodrag-js">https://github.com/asgordon/rotodrag-js</a></p>
+      
+    </div>
+    
+  </body>
+  
+</html>
