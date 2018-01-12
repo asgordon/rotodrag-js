@@ -1,4 +1,4 @@
-// rotodrag-0.1.0.js
+// rotodrag-0.1.1.js
 // A JavaScript library for svg object translation and rotoation
 // using mouse or touch events.
 // Copyright (c) 2018, University of Southern California
@@ -115,19 +115,10 @@ var rotodrag = function(svg) {
 
     var getSVGPoint = function(e) {
         // return the SVG point that corresponds to the touch/mouse event
-        // Warning: different behavior on mobile safari and desktop safari
         var posx = 0;
         var posy = 0;
-        // fix for mobile safari
-        if (navigator.userAgent.match(/(iPod|iPhone|iPad)/) &&
-            navigator.userAgent.match(/AppleWebKit/)) {
-            posx = e.pageX;
-            posy = e.pageY;
-        }
-        else {
-            posx = e.clientX;
-            posy = e.clientY;
-        }
+        posx = e.clientX;
+        posy = e.clientY;
         var pt = svg.createSVGPoint();
         pt.x = posx;
         pt.y = posy;
