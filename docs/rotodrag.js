@@ -1,4 +1,4 @@
-// rotodrag-0.1.1.js
+// rotodrag.js
 // A JavaScript library for svg object translation and rotoation
 // using mouse or touch events.
 // Copyright (c) 2018, University of Southern California
@@ -28,6 +28,7 @@ var rotodrag = function(svg) {
     var transforms = {}; // initial transform attributes, indexed by name
     for (var i = 0; i < draggables.length; i++) {
 	var o = draggables[i];
+	o.transform.baseVal.consolidate();
         transforms[o.getAttribute("data-character-name")] = o.getAttribute('transform');
     }
     var dragStarts = []; // points on draggable objects
@@ -125,8 +126,16 @@ var rotodrag = function(svg) {
         return pt.matrixTransform(svg.getScreenCTM().inverse());
     }
 
-    // DRAGGING FUNCTIONS
+    var getXYR = function(shape) {
+	// Derived from https://gist.github.com/2052247
+	var matrix = shape.transform.baseVal[0].matrix;
+	res = {x: matrix.e,
+	       y: matrix.f,
+	       r: (180 / Math.PI) * Math.atan2(matrix.d, matrix.c) - 90};
+	return res;
+    }
 
+    // DRAGGING FUNCTIONS
 
     // startDrag : initialize relevant dragging variables
     var startDrag = function(obj, svgPoint) {
@@ -204,6 +213,7 @@ var rotodrag = function(svg) {
         }
 
         shape.setAttributeNS(null, "transform", transformString);
+	shape.transform.baseVal.consolidate();
         if ((recordMode === 'record') && isRecordable(shape)) {
             continueRecording();
         }
