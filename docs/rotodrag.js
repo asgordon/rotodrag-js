@@ -566,6 +566,9 @@ var rotodrag = function(svg) {
     svg.addEventListener('mousemove', mouseDrag);
     svg.addEventListener('mouseup', mouseEndDrag);
 
+    // fix for scrolling in Android Chrome
+    svg.style.touchAction = "none";
+
 
     return {
 
