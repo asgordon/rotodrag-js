@@ -6,7 +6,7 @@
 
 'use strict';
 
-const Rotodrag = function (svg) {
+const Rotodrag = (svg) => {
 
     // PRIVATE VARIABLES
 
@@ -14,23 +14,20 @@ const Rotodrag = function (svg) {
     const draggables = svg.querySelectorAll('.draggable');
     const recordables = svg.querySelectorAll('.recordable');
 
-    // print centers
-    for (let i = 0; i < draggables.length; i++) {
-        const bb = draggables[i].getBBox();
-        console.log(bb.x + (bb.width * 0.5), bb.y + (bb.height * 0.5));
-    }
+    // Log initialization & draggable centers
+    console.group('Rotodrag initialized');
+    console.log(`${draggables.length} draggable object(s) found.`);
+    draggables.forEach((el, i) => {
+        const bb = el.getBBox();
+        const cx = bb.x + (bb.width * 0.5);
+        const cy = bb.y + (bb.height * 0.5);
+        console.log(`  ${i}: id="${el.id || 'unnamed'}" with center (${cx.toFixed(1)}, ${cy.toFixed(1)})`);
+    });
+    console.groupEnd();
 
     // Arrays store dragging data, indexed by position in draggables array;
-    const transforms = {}; // initial transform attributes, indexed by name
-    for (let i = 0; i < draggables.length; i++) {
-        const o = draggables[i];
-        o.transform.baseVal.consolidate();
-        transforms[o.getAttribute("data-character-name")] = o.getAttribute('transform');
-    }
-    let dragStarts = []; // points on draggable objects
     let offsets = []; // points encoding distance to center point
     let offsetAngles = []; // angles from offset to center point
-
 
     // What mode are we in?
     let inDragMode = false; // default is no dragging
@@ -62,7 +59,7 @@ const Rotodrag = function (svg) {
 
     // UTILITY FUNCTIONS
 
-    const getIndex = function (obj) {
+    const getIndex = (obj) => {
         // returns index of object in draggables array
         for (let i = 0; i < draggables.length; i++) {
             if (draggables[i] === obj) {
@@ -72,7 +69,7 @@ const Rotodrag = function (svg) {
         return -1;
     }
 
-    const getIndexByCharacterName = function (name) {
+    const getIndexByCharacterName = (name) => {
         for (let i = 0; i < draggables.length; i++) {
             if (draggables[i].getAttribute("data-character-name") == name) {
                 return i;
@@ -81,7 +78,7 @@ const Rotodrag = function (svg) {
         return -1;
     }
 
-    const isRecordable = function (obj) {
+    const isRecordable = (obj) => {
         for (let i = 0; i < recordables.length; i++) {
             if (recordables[i] === obj) {
                 return true;
@@ -90,14 +87,14 @@ const Rotodrag = function (svg) {
         return false;
     }
 
-    const getCenter = function (shape) {
+    const getCenter = (shape) => {
         // return the center point of the given shape
         // assuming that its center is 0,0 with no transforms
         const pt = svg.createSVGPoint();
         return pt.matrixTransform(svg.getTransformToElement(shape).inverse());
     }
 
-    const getRelativePoint = function (p1, p2) {
+    const getRelativePoint = (p1, p2) => {
         // calculate p1 as a point relative to point p2, then return drag point
         let pt = svg.createSVGPoint();
         pt.x = p1.x - p2.x;
@@ -105,44 +102,18 @@ const Rotodrag = function (svg) {
         return (pt);
     }
 
-    const addPoints = function (p1, p2) {
-        //calculate the result of adding point p2 to point p1, then return drag point
+    const getSVGPoint = (e) => {
         const pt = svg.createSVGPoint();
-        pt.x = p1.x + p2.x;
-        pt.y = p1.y + p2.y;
-        return (pt);
-    }
-
-    const getSVGPoint = function (e) {
-        // return the SVG point that corresponds to the touch/mouse event
-        let posx = 0;
-        let posy = 0;
-        posx = e.clientX;
-        posy = e.clientY;
-        let pt = svg.createSVGPoint();
-        pt.x = posx;
-        pt.y = posy;
+        pt.x = e.clientX;
+        pt.y = e.clientY;
         return pt.matrixTransform(svg.getScreenCTM().inverse());
-    }
-
-    const getXYR = function (shape) {
-        // Derived from https://gist.github.com/2052247
-        const matrix = shape.transform.baseVal[0].matrix;
-        const res = {
-            x: matrix.e,
-            y: matrix.f,
-            r: (180 / Math.PI) * Math.atan2(matrix.d, matrix.c) - 90
-        };
-        return res;
     }
 
     // DRAGGING FUNCTIONS
 
     // startDrag : initialize relevant dragging variables
-    const startDrag = function (obj, svgPoint) {
+    const startDrag = (obj, svgPoint) => {
         const i = getIndex(obj); // unique identifier
-        // get the SVG point corresponding to the point where the shape was selected
-        dragStarts[i] = svgPoint;
         // calculate the dragging start point relative to the object's
         // center point (and regardless of the shape's current rotation)
         offsets[i] = svgPoint.matrixTransform(svg.getTransformToElement(obj));
@@ -156,13 +127,12 @@ const Rotodrag = function (svg) {
             offsetAngles[i] = o;
         }
         // fire event
-        const evt = document.createEvent('CustomEvent');
-        evt.initCustomEvent('draggableStartDrag', false, false, null);
+        const evt = new CustomEvent('draggableStartDrag', { bubbles: false, cancelable: false, detail: null });
         svg.dispatchEvent(evt);
     }
 
     // drag : calculate relative changes
-    const drag = function (obj, dragEnd) {
+    const drag = (obj, dragEnd) => {
         const i = getIndex(obj); // unique identifier
         // get the center point of the current position of the shape
         const center = getCenter(obj);
@@ -180,22 +150,21 @@ const Rotodrag = function (svg) {
     }
 
     // moveTo : update the transform attribute, handle special cases
-    const moveTo = function (shape, dragEnd, rotation, offset) {
+    const moveTo = (shape, dragEnd, rotation, offset) => {
         // translate and rotate the given shape according to the given values
         if (rotation < 0) { rotation = rotation + 360; } // human clarity
         let transformString;
-        const slipRadius = parseFloat(shape.getAttribute('data-slip-radius')) || 100;
-        const distance = Math.sqrt(Math.pow(offset.x, 2) + Math.pow(offset.y, 2));
+        const slipRadius = Number(shape.getAttribute('data-slip-radius')) || 100;
         if (shape.getAttribute('data-dragstyle') === 'rotate') {
-            const above = parseFloat(shape.getAttribute('data-rotate-above')) || 0;
-            const below = parseFloat(shape.getAttribute('data-rotate-below')) || 360;
-            const posx = parseFloat(shape.getAttribute('data-fixed-x'));
-            const posy = parseFloat(shape.getAttribute('data-fixed-y'));
+            const above = Number(shape.getAttribute('data-rotate-above')) || 0;
+            const below = Number(shape.getAttribute('data-rotate-below')) || 360;
+            const posx = Number(shape.getAttribute('data-fixed-x'));
+            const posy = Number(shape.getAttribute('data-fixed-y'));
             if ((rotation < above) && (rotation > below)) {
                 transformString = shape.getAttribute('transform'); // don't move
             }
             else {
-                transformString = "translate(" + posx + ", " + posy + ") " + "rotate (" + rotation + ") ";
+                transformString = `translate(${posx}, ${posy}) rotate(${rotation}) `;
             }
         }
         else if ((shape.getAttribute('data-dragstyle') === 'slippery') &&
@@ -204,16 +173,16 @@ const Rotodrag = function (svg) {
             slipTo(shape, dragEnd);
         }
         else if (shape.getAttribute('data-dragstyle') === 'xaxis') {
-            const posy = parseFloat(shape.getAttribute('data-fixed-y'));
+            const posy = Number(shape.getAttribute('data-fixed-y'));
             const posx = dragEnd.x + (offset.x * -1);
-            const minx = parseFloat(shape.getAttribute('data-min-x'));
-            const maxx = parseFloat(shape.getAttribute('data-max-x'));
+            const minx = Number(shape.getAttribute('data-min-x'));
+            const maxx = Number(shape.getAttribute('data-max-x'));
             if (posx < minx) { posx = minx; }
             if (posx > maxx) { posx = maxx; }
-            transformString = "translate(" + posx + ", " + posy + ") ";
+            transformString = `translate(${posx}, ${posy}) `;
         }
         else {
-            transformString = "translate(" + dragEnd.x + ", " + dragEnd.y + ") " + "rotate (" + rotation + ") " + "translate(" + (offset.x * -1) + ", " + (offset.y * -1) + ") ";
+            transformString = `translate(${dragEnd.x}, ${dragEnd.y}) rotate(${rotation}) translate(${-offset.x}, ${-offset.y})`;
         }
 
         shape.setAttributeNS(null, "transform", transformString);
@@ -224,7 +193,7 @@ const Rotodrag = function (svg) {
     }
 
     // slipTo : handle sippery centers, update relevant dragging variables
-    const slipTo = function (shape, point) {
+    const slipTo = (shape, point) => {
         // Could be fancier, but this works:
         startDrag(shape, point);
 
@@ -232,9 +201,7 @@ const Rotodrag = function (svg) {
 
     // RECORDING FUNCTIONS
 
-    const startRecording = function (offset) {
-        // offset of optional argument
-        if (typeof (offset) === 'undefined') offset = 0; // beginning is default
+    const startRecording = (offset = 0) => {
         // initialize recording by getting the current timestamp,
         recordStartTime = new Date().getTime() - offset;
         // setting the recording boolean to true to indicate recording is taking place,
@@ -250,19 +217,19 @@ const Rotodrag = function (svg) {
         }
     }
 
-    const startRecordingFromPause = function () {
+    const startRecordingFromPause = () => {
         clearRecordingFrom(pauseTimepoint);
         startRecording(pauseTimepoint);
     }
 
-    const continueRecording = function () {
+    const continueRecording = () => {
         //get the recording timepoint by determining how much time has elapsed since recording began,
         let recordTimepoint = new Date().getTime() - recordStartTime;
         // then call record() to save the position data for this timepoint
         record(recordTimepoint);
     }
 
-    const stopRecording = function () {
+    const stopRecording = () => {
         // end recording by setting the recording boolean to false
         //inRecordMode = false;
         recordMode = 'pause';
@@ -271,7 +238,7 @@ const Rotodrag = function (svg) {
         }
     }
 
-    const pauseRecording = function () {
+    const pauseRecording = () => {
         // what time is it?
         pauseTimepoint = elapsedTime();
         // pause recording by setting the recording boolean to false, but leave any timer running
@@ -280,31 +247,29 @@ const Rotodrag = function (svg) {
         // maybe make a more sophistocated timer sometime in the future?
     }
 
-    const clearRecording = function () {
+    const clearRecording = () => {
         pausePlayback();
         seekTo(0); // move objects back to start
         positionData = {}; // clear position data
         record(0); // set zero point
     }
 
-    const clearRecordingFrom = function (killPoint) {
+    const clearRecordingFrom = (killPoint) => {
         // erase all position data beyond a given timepoint, in milliseconds
         let biggest = 0;
-        for (let prop in positionData) {
-            if (positionData.hasOwnProperty(prop)) {
-                const timepoint = parseInt(prop);
-                if (timepoint >= killPoint) {
-                    delete positionData[prop];
-                }
-                else if (timepoint > biggest) {
-                    biggest = timepoint;
-                }
+        for (const prop of Object.keys(positionData)) {
+            const timepoint = parseInt(prop);
+            if (timepoint >= killPoint) {
+                delete positionData[prop];
+            }
+            else if (timepoint > biggest) {
+                biggest = timepoint;
             }
         }
         recordEndTime = biggest;
     }
 
-    const record = function (timePoint) {
+    const record = (timePoint) => {
         //record the position of all shapes at the given timepoint in the positionData object
         positionData[timePoint] = {};
         let name, transform;
@@ -320,7 +285,7 @@ const Rotodrag = function (svg) {
 
     record(0); // initialize position data
 
-    const getTrimmedPositionData = function (start, end) {
+    const getTrimmedPositionData = (start, end) => {
         let oriT; // original timepoint
         let adjT;  //adjusted timepoint
         let result = {}; // new position data object
@@ -330,13 +295,11 @@ const Rotodrag = function (svg) {
         result['0'] = positionData[oneBefore];
 
         // then fill in the rest
-        for (let prop in positionData) {
-            if (positionData.hasOwnProperty(prop)) {
-                oriT = parseInt(prop);
-                if ((oriT >= start) && (oriT <= end)) { // within range
-                    adjT = oriT - start;
-                    result[adjT] = positionData[oriT];
-                }
+        for (const prop of Object.keys(positionData)) {
+            oriT = parseInt(prop);
+            if ((oriT >= start) && (oriT <= end)) { // within range
+                adjT = oriT - start;
+                result[adjT] = positionData[oriT];
             }
         }
         return result;
@@ -346,16 +309,14 @@ const Rotodrag = function (svg) {
 
     // PLAYBACK FUNCTIONS
 
-    const startPlayback = function (offset) {
-        // offset of optional argument
-        if (typeof (offset) === 'undefined') offset = 0; // beginning is default
+    const startPlayback = (offset = 0) => {
         // initialize playback by ending the current playback (if needed)
         stopPlayback(); //end previous playback before starting new
         const playbackStartTime = new Date().getTime();
         // and then setting up a player that will retrieve position data every 10 milliseconds
         // and display the position at that timepoint
         const sortedTimepoints = getSortedTimepoints();
-        player = setInterval(function () {
+        player = setInterval(() => {
             if (recordMode === 'play') { // insurance, because sometimes timers persist, maybe?
                 playbackTimepoint = new Date().getTime() - playbackStartTime + offset;
                 const playbackTimepointProperty = getClosestTimepoint(sortedTimepoints, playbackTimepoint, 0);
@@ -375,37 +336,30 @@ const Rotodrag = function (svg) {
         recordMode = 'play';
     }
 
-    const startPlaybackFromPause = function () {
+    const startPlaybackFromPause = () => {
         startPlayback(pauseTimepoint);
     }
 
-    const playback = function (timePoint) {
-        // configure recordable characters to match the positions
-        // at the given timepoint
-        for (let name in positionData[timePoint]) {
-            const transform = positionData[timePoint][name];
+    const playback = (timePoint) => {
+        for (const [name, transform] of Object.entries(positionData[timePoint])) {
             const element = draggables[getIndexByCharacterName(name)];
             element.setAttributeNS(null, "transform", transform);
         }
     }
 
-    const stopPlayback = function () { //end playback by clearing the player
-        if (player != undefined) {
-            clearInterval(player);
-        }
+    const stopPlayback = () => { //end playback by clearing the player
+        clearInterval(player);
         recordMode = 'pause';
     }
 
-    const pausePlayback = function () { //end playback by clearing the player
+    const pausePlayback = () => { //end playback by clearing the player
         // what time is it?
         pauseTimepoint = elapsedTime();
-        if (player != undefined) {
-            clearInterval(player);
-        }
+        clearInterval(player);
         recordMode = 'pause';
     }
 
-    const seekTo = function (milliseconds) { // should only be used when in pause mode
+    const seekTo = (milliseconds) => { // should only be used when in pause mode
         if (recordMode === 'pause') {
             const sortedTimepoints = getSortedTimepoints();
             const playbackTimepointProperty = getClosestTimepoint(sortedTimepoints, milliseconds, 0);
@@ -414,20 +368,10 @@ const Rotodrag = function (svg) {
         }
     }
 
-    const getSortedTimepoints = function () {
-        // get all timepoints that positionData has recordings for,
-        let timepoints = [];
-        for (let timepoint in positionData) {
-            if (positionData.hasOwnProperty(timepoint)) {
-                timepoints.push(parseInt(timepoint));
-            }
-        }
-        // and then return them in a sorted array so that the player can iterate through them
-        timepoints.sort(function (a, b) { return a - b });
-        return timepoints;
-    }
+    const getSortedTimepoints = () => 
+        Object.keys(positionData).map(Number).sort((a, b) => a - b);
 
-    const getClosestTimepoint = function (sortedTimepoints, targetTimepoint, startIndex) {
+    const getClosestTimepoint = (sortedTimepoints, targetTimepoint, startIndex) => {
         if (targetTimepoint > recordEndTime) { return recordEndTime; }
         // use binary search to return the timepoint in positionData that occurs
         // directly before the given targetTimepoint
@@ -439,7 +383,7 @@ const Rotodrag = function (svg) {
         const targetRangeMin = sortedTimepoints[middle];
         const targetRangeMax = sortedTimepoints[middle + 1];
 
-        while (targetTimepoint < targetRangeMin || targetTimepoint >= targetRangeMax && startIndex < stopIndex) {
+        while ((targetTimepoint < targetRangeMin || targetTimepoint >= targetRangeMax) && startIndex < stopIndex) {
             //adjust search area
             if (targetTimepoint < sortedTimepoints[middle]) {
                 stopIndex = middle - 1;
@@ -454,13 +398,13 @@ const Rotodrag = function (svg) {
         return sortedTimepoints[middle];
     }
 
-    const getLastTimepoint = function () {
+    const getLastTimepoint = () => {
         const sorted = getSortedTimepoints();
         const index = sorted.length - 1;
         return sorted[index];
     }
 
-    const elapsedTime = function () {
+    const elapsedTime = () => {
         // dependent on recordMode
         if (recordMode === 'record') {
             return (new Date().getTime() - recordStartTime);
@@ -482,7 +426,7 @@ const Rotodrag = function (svg) {
 
     // (different for mouse and touch events)
 
-    const findDraggable = function (element) {
+    const findDraggable = (element) => {
         if (element.classList.contains('draggable')) {
             return (element);
         }
@@ -491,7 +435,7 @@ const Rotodrag = function (svg) {
         }
     }
 
-    const mouseStartDrag = function (event) {
+    const mouseStartDrag = (event) => {
         if (inDragMode) {
             mouseTarget = findDraggable(event.target);
             // we are now dragging something with the mouse
@@ -503,15 +447,15 @@ const Rotodrag = function (svg) {
         }
     }
 
-    const mouseDrag = function (event) {
+    const mouseDrag = (event) => {
         if (inDragMode) {
-            if (mouseDragging === true) { // yes, we are dragging something
+            if (mouseDragging) { // yes, we are dragging something
                 drag(mouseTarget, getSVGPoint(event));
             }
         }
     }
 
-    const mouseEndDrag = function (event) {
+    const mouseEndDrag = (event) => {
         if (inDragMode) {
             // fires when dragging is ended (by the user releasing the shape via mouseup)
             mouseDragging = false; // mark that dragging is no longer occurring
@@ -519,29 +463,25 @@ const Rotodrag = function (svg) {
         }
     }
 
-    const touchStartDrag = function (event) {
+    const touchStartDrag = (event) => {
         if (inDragMode) {
             event.preventDefault(); // Don't propogate this event. Wise?
-            const touchData = event.targetTouches;
-            const touch = touchData[0];
+            const touch = event.targetTouches[0];
             const obj = findDraggable(touch.target); //untested
             startDrag(obj, getSVGPoint(touch));
         }
     }
 
-    const touchDrag = function (event) {
+    const touchDrag = (event) => {
         if (inDragMode) {
             event.preventDefault(); // Don't propogate this event. Wise?
-            const touchData = event.targetTouches;
-            const touch = touchData[0];
+            const touch = event.targetTouches[0];
             const obj = findDraggable(touch.target);
-            requestAnimationFrame(function () {
-                drag(obj, getSVGPoint(touch));
-            });
+            requestAnimationFrame(() => drag(obj, getSVGPoint(touch)));
         }
     }
 
-    const triggerRecording = function (event) {
+    const triggerRecording = (event) => {
         if ((recordMode !== 'record') && recordEnabled && inDragMode) {
             if (recordMode === 'pause') {
                 if (enableRecordingFromPause) {
@@ -561,15 +501,16 @@ const Rotodrag = function (svg) {
     }
 
     // add event handlers
-    for (let i = 0; i < draggables.length; i++) {
-        draggables[i].addEventListener('mousedown', mouseStartDrag);
-        draggables[i].addEventListener('touchstart', touchStartDrag);
-        draggables[i].addEventListener('touchmove', touchDrag);
+    for (const el of draggables) {
+        el.addEventListener('mousedown', mouseStartDrag);
+        el.addEventListener('touchstart', touchStartDrag);
+        el.addEventListener('touchmove', touchDrag);
     }
-    for (let i = 0; i < recordables.length; i++) {
-        recordables[i].addEventListener('mousedown', triggerRecording);
-        recordables[i].addEventListener('touchstart', triggerRecording);
+    for (const el of recordables) {
+        el.addEventListener('mousedown', triggerRecording);
+        el.addEventListener('touchstart', triggerRecording);
     }
+
     svg.addEventListener('mousemove', mouseDrag);
     svg.addEventListener('mouseup', mouseEndDrag);
 
@@ -577,109 +518,103 @@ const Rotodrag = function (svg) {
     svg.style.touchAction = "none";
 
 
-    return {
+    return { // ES6 shorthand syntax
 
-        enableDragging: function () {
+        enableDragging() {
             inDragMode = true;
         },
 
-        disableDragging: function () {
+        disableDragging() {
             inDragMode = false;
         },
 
-        enableRecording: function () {
+        enableRecording() {
             recordEnabled = true;
         },
 
-        disableRecording: function () {
+        disableRecording() {
             recordEnabled = false;
             stopRecording();
         },
 
-        clearRecording: clearRecording,
+        clearRecording,
 
-        clearRecordingFrom: clearRecordingFrom,
+        clearRecordingFrom,
 
-        recordStatus: function () {
-            if (recordMode === 'record') {
-                return true;
-            }
-            else {
-                return false;
-            }
+        recordStatus() {
+            return recordMode === 'record';
         },
 
-        getPositionData: function () {
+        getPositionData() {
             // return the object containing all shapes' position data
             return positionData;
         },
 
-        getTrimmedPositionData: getTrimmedPositionData, // position data within start & end times
+        getTrimmedPositionData, // position data within start & end times
 
-        getRecordEndTime: function () {
+        getRecordEndTime() {
             // return the last index in the position data (milliseconds)
             return recordEndTime;
         },
 
-        loadPositionData: function (newData) {
+        loadPositionData(newData) {
             // load the given newData into positionData so that it can be played back
             positionData = newData;
             recordEndTime = getLastTimepoint();
         },
 
-        startPlayback: startPlayback,
+        startPlayback,
 
-        startPlaybackFromPause: startPlaybackFromPause,
+        startPlaybackFromPause,
 
-        stopPlayback: stopPlayback,
+        stopPlayback,
 
-        pauseRecording: pauseRecording,
+        pauseRecording,
 
-        startRecordingFromPause: startRecordingFromPause,
+        startRecordingFromPause,
 
-        pausePlayback: pausePlayback,
+        pausePlayback,
 
-        seekTo: seekTo,
+        seekTo,
 
-        enableRecordingFromPause: function () {
+        enableRecordingFromPause() {
             enableRecordingFromPause = true;
         },
 
-        enableRecordingFromPlaybackEnd: function () {
+        enableRecordingFromPlaybackEnd() {
             enableRecordingFromPlaybackEnd = true;
         },
 
-        enableRecordingDuringPlayback: function () {
+        enableRecordingDuringPlayback() {
             enableRecordingDuringPlayback = true;
         },
 
-        setRecordingTimeout: function (func, milliseconds) {
+        setRecordingTimeout(func, milliseconds) {
             timeoutFunction = func;
             timeoutMilliseconds = milliseconds;
         },
 
-        reset: function () {
+        reset() {
             pausePlayback();
             seekTo(0);
         },
 
-        getRecordMode: function () {
+        getRecordMode() {
             return recordMode;
         }, // 'pause', 'play', 'record', or 'overdub'
 
-        elapsedTime: elapsedTime // best guess of what millisecond we are at in the current recording
+        elapsedTime // best guess of what millisecond we are at in the current recording
 
     }
 }
 
 // autostart
 
-document.addEventListener("DOMContentLoaded", function () {
-    const svgs = document.querySelectorAll('.draggables');
-    svgs.forEach(function (svg) {
-        Rotodrag(svg).enableDragging();
-    });
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll('.draggables').forEach(svg => Rotodrag(svg).enableDragging());
 });
+
+
 
 // Polyfill for Chrome
 
