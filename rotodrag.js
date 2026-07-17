@@ -25,18 +25,16 @@ const Rotodrag = (svg) => {
     });
     console.groupEnd();
 
-    // Arrays store dragging data, indexed by position in draggables array;
-    let offsets = []; // points encoding distance to center point
-    let offsetAngles = []; // angles from offset to center point
+    // Map to store active drags per pointer ID.
+    // Key: pointerId (number)
+    // Value: { element, index, offset, angle }
+    const activePointers = new Map();
 
     // What mode are we in?
     let inDragMode = false; // default is no dragging
+
     let recordEnabled = false; // default is no recording
     let recordMode = 'pause'; // 'pause', 'play', 'record', or 'overdub'
-
-    // Special variables needed for svg-level event handlers (mousemove)
-    let mouseDragging = false; // True when mousedown on a draggable object
-    let mouseTarget = null; // The object that is being dragged with a mouse
 
     // Recording and playback
     let player; // timer for playback
@@ -111,46 +109,43 @@ const Rotodrag = (svg) => {
 
     // DRAGGING FUNCTIONS
 
-    // startDrag : initialize relevant dragging variables
-    const startDrag = (obj, svgPoint) => {
-        const i = getIndex(obj); // unique identifier
-        // calculate the dragging start point relative to the object's
-        // center point (and regardless of the shape's current rotation)
-        offsets[i] = svgPoint.matrixTransform(svg.getTransformToElement(obj));
-        // calculate the angle between the dragging start point and the shape's center point
-        const o = Math.atan2(offsets[i].y, offsets[i].x) * 180 / Math.PI + 90;
-        if (o < 0) {
-            // if the angle is less than 0, add a full rotation for human readability
-            offsetAngles[i] = o + 360;
-        }
-        else {
-            offsetAngles[i] = o;
-        }
-        // fire event
-        const evt = new CustomEvent('draggableStartDrag', { bubbles: false, cancelable: false, detail: null });
-        svg.dispatchEvent(evt);
+    const initDragState = (obj, svgPoint, pointerId) => {
+        const i = getIndex(obj);
+        if (i === -1) return null;
+
+        const offset = svgPoint.matrixTransform(svg.getTransformToElement(obj));
+        let angle = Math.atan2(offset.y, offset.x) * 180 / Math.PI + 90;
+        if (angle < 0) angle += 360;
+
+        return { element: obj, index: i, offset, angle, pointerId };
     }
 
-    // drag : calculate relative changes
-    const drag = (obj, dragEnd) => {
-        const i = getIndex(obj); // unique identifier
+    // drag : calculate relative changes based on pointer state
+    const drag = (state, dragEnd) => {
+        const obj = state.element;
+        const i = state.index;
+        const offset = state.offset;
+        const offsetAngle = state.angle;
+
         // get the center point of the current position of the shape
         const center = getCenter(obj);
         // get the coordinates of the new dragging point relative to the current center point
         const relativeDragEnd = getRelativePoint(dragEnd, center);
+        
         // calculate the angle between the new dragging point and the center point
         let relativeAngle = Math.atan2(relativeDragEnd.y, relativeDragEnd.x) * 180 / Math.PI + 90;
-        if (relativeAngle < 0) {
-            relativeAngle = relativeAngle + 360;
-        } // for human clarity
-        // adjust the angle of rotation by subtracting the angle between the dragging start point and the center point
-        const rotation = relativeAngle - offsetAngles[i];
-        //call moveTo() to move the shape based on the above calculations
-        moveTo(obj, dragEnd, rotation, offsets[i]);
+        if (relativeAngle < 0) relativeAngle += 360;
+        
+        // adjust the angle of rotation by subtracting the initial angle
+        const rotation = relativeAngle - offsetAngle;
+        
+        // call moveTo() to move the shape based on the calculations
+        moveTo(obj, dragEnd, rotation, offset, state);
     }
 
+
     // moveTo : update the transform attribute, handle special cases
-    const moveTo = (shape, dragEnd, rotation, offset) => {
+    const moveTo = (shape, dragEnd, rotation, offset, state) => {
         // translate and rotate the given shape according to the given values
         if (rotation < 0) { rotation = rotation + 360; } // human clarity
         let transformString;
@@ -170,7 +165,7 @@ const Rotodrag = (svg) => {
         else if ((shape.getAttribute('data-dragstyle') === 'slippery') &&
             (Math.sqrt(Math.pow(offset.x, 2) + Math.pow(offset.y, 2)) < slipRadius)) {
             transformString = shape.getAttribute('transform'); // don't move
-            slipTo(shape, dragEnd);
+            slipTo(state, dragEnd); 
         }
         else if (shape.getAttribute('data-dragstyle') === 'xaxis') {
             const posy = Number(shape.getAttribute('data-fixed-y'));
@@ -192,12 +187,20 @@ const Rotodrag = (svg) => {
         }
     }
 
-    // slipTo : handle sippery centers, update relevant dragging variables
-    const slipTo = (shape, point) => {
-        // Could be fancier, but this works:
-        startDrag(shape, point);
+    const slipTo = (state, point) => {
+        // Recalculate offset and angle based on current pointer position
+        const newOffset = point.matrixTransform(svg.getTransformToElement(state.element));
+        let newAngle = Math.atan2(newOffset.y, newOffset.x) * 180 / Math.PI + 90;
+        if (newAngle < 0) newAngle += 360;
 
+        // Update the state in the Map for this pointer
+        activePointers.set(state.pointerId, {
+            ...state,
+            offset: newOffset,
+            angle: newAngle
+        });
     }
+
 
     // RECORDING FUNCTIONS
 
@@ -304,8 +307,6 @@ const Rotodrag = (svg) => {
         }
         return result;
     }
-
-
 
     // PLAYBACK FUNCTIONS
 
@@ -421,65 +422,60 @@ const Rotodrag = (svg) => {
         }
     }
 
-
     // EVENT HANDLERS
 
-    // (different for mouse and touch events)
-
     const findDraggable = (element) => {
+        // Stop if we hit the end of the tree or the SVG container itself
+        if (!element || element === svg) return null;
         if (element.classList.contains('draggable')) {
-            return (element);
+            return element;
         }
-        else {
-            return (findDraggable(element.parentElement));
-        }
+        return findDraggable(element.parentElement);
     }
 
-    const mouseStartDrag = (event) => {
-        if (inDragMode) {
-            mouseTarget = findDraggable(event.target);
-            // we are now dragging something with the mouse
-            mouseDragging = true;
-            // bring the shape to the front of the canvas
-            mouseTarget.parentNode.appendChild(mouseTarget);
-            // startDrag
-            startDrag(mouseTarget, getSVGPoint(event));
-        }
-    }
+    const handlePointerDown = (e) => {
+        if (!inDragMode) return;
 
-    const mouseDrag = (event) => {
-        if (inDragMode) {
-            if (mouseDragging) { // yes, we are dragging something
-                drag(mouseTarget, getSVGPoint(event));
-            }
-        }
-    }
+        // Prevent default browser behaviors (scrolling, selection, context menu)
+        e.preventDefault();
 
-    const mouseEndDrag = (event) => {
-        if (inDragMode) {
-            // fires when dragging is ended (by the user releasing the shape via mouseup)
-            mouseDragging = false; // mark that dragging is no longer occurring
-            mouseTarget = null;
-        }
-    }
+        // Ignore if this pointer is already tracked (e.g., mouse down events can fire multiple times)
+        if (activePointers.has(e.pointerId)) return;
 
-    const touchStartDrag = (event) => {
-        if (inDragMode) {
-            event.preventDefault(); // Don't propogate this event. Wise?
-            const touch = event.targetTouches[0];
-            const obj = findDraggable(touch.target); //untested
-            startDrag(obj, getSVGPoint(touch));
-        }
-    }
+        // Find the draggable object (handling nested elements like paths inside groups)
+        const target = findDraggable(e.target);
+        if (!target) return;
 
-    const touchDrag = (event) => {
-        if (inDragMode) {
-            event.preventDefault(); // Don't propogate this event. Wise?
-            const touch = event.targetTouches[0];
-            const obj = findDraggable(touch.target);
-            requestAnimationFrame(() => drag(obj, getSVGPoint(touch)));
+        // Initialize drag state and store in Map
+        const state = initDragState(target, getSVGPoint(e), e.pointerId);
+        if (state) {
+            activePointers.set(e.pointerId, state);
+            
+            // Fire custom event for external listeners
+            const evt = new CustomEvent('draggableStartDrag', { bubbles: false, cancelable: false, detail: { pointerId: e.pointerId } });
+            svg.dispatchEvent(evt);
         }
-    }
+    };
+
+    const handlePointerMove = (e) => {
+        if (!inDragMode) return;
+
+        // Only process if this pointer is actively dragging
+        const state = activePointers.get(e.pointerId);
+        if (state) {
+            drag(state, getSVGPoint(e));
+        }
+    };
+
+    const handlePointerUp = (e) => {
+        // End drag for this specific pointer
+        activePointers.delete(e.pointerId);
+    };
+
+    const handlePointerCancel = (e) => {
+        // Handle cases where the browser cancels the pointer (e.g., system interruption)
+        activePointers.delete(e.pointerId);
+    };
 
     const triggerRecording = (event) => {
         if ((recordMode !== 'record') && recordEnabled && inDragMode) {
@@ -500,23 +496,20 @@ const Rotodrag = (svg) => {
         }
     }
 
-    // add event handlers
-    for (const el of draggables) {
-        el.addEventListener('mousedown', mouseStartDrag);
-        el.addEventListener('touchstart', touchStartDrag);
-        el.addEventListener('touchmove', touchDrag);
-    }
+    // Attach unified Pointer Event handlers to the SVG
+    svg.addEventListener('pointerdown', handlePointerDown, { passive: false });
+    svg.addEventListener('pointermove', handlePointerMove, { passive: false });
+    svg.addEventListener('pointerup', handlePointerUp, { passive: false });
+    svg.addEventListener('pointercancel', handlePointerCancel, { passive: false });
+
     for (const el of recordables) {
-        el.addEventListener('mousedown', triggerRecording);
-        el.addEventListener('touchstart', triggerRecording);
+        el.addEventListener('pointerdown', (e) => {
+            triggerRecording(e);
+        });
     }
 
-    svg.addEventListener('mousemove', mouseDrag);
-    svg.addEventListener('mouseup', mouseEndDrag);
-
-    // fix for scrolling in Android Chrome
+    // Ensure touch actions are suppressed to prevent scrolling on mobile
     svg.style.touchAction = "none";
-
 
     return { // ES6 shorthand syntax
 
