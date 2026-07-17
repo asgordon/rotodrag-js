@@ -376,13 +376,13 @@ const Rotodrag = (svg) => {
         if (targetTimepoint > recordEndTime) { return recordEndTime; }
         // use binary search to return the timepoint in positionData that occurs
         // directly before the given targetTimepoint
-        const stopIndex = sortedTimepoints.length - 1;
-        const middle = Math.floor((stopIndex + startIndex) / 2);
+        let stopIndex = sortedTimepoints.length - 1;
+        let middle = Math.floor((stopIndex + startIndex) / 2);
         if (targetTimepoint >= sortedTimepoints[stopIndex]) {
-            return stopIndex;
+            return sortedTimepoints[stopIndex];
         }
-        const targetRangeMin = sortedTimepoints[middle];
-        const targetRangeMax = sortedTimepoints[middle + 1];
+        let targetRangeMin = sortedTimepoints[middle];
+        let targetRangeMax = sortedTimepoints[middle + 1];
 
         while ((targetTimepoint < targetRangeMin || targetTimepoint >= targetRangeMax) && startIndex < stopIndex) {
             //adjust search area
